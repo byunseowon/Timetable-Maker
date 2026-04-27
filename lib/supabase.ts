@@ -30,7 +30,7 @@ export async function saveCurriculaToSupabase(data: Record<string, CurriculumIte
   const newTracks = new Set(Object.keys(data))
 
   // 삭제된 트랙 제거
-  const toDelete = [...existingTracks].filter((t) => !newTracks.has(t))
+  const toDelete = Array.from(existingTracks).filter((t) => !newTracks.has(t))
   if (toDelete.length > 0) {
     const { error } = await sb.from('curricula').delete().in('track', toDelete)
     if (error) throw new Error(error.message)
