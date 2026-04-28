@@ -150,8 +150,8 @@ async function applyFormat(
 
   const reqs: object[] = []
 
-  // 열 너비: A=21, B=72, C=18, D=72, E-I=375
-  const colWidths = [21, 72, 18, 72, 375, 375, 375, 375, 375]
+  // 열 너비: A=17, B=58, C=14, D=58, E-I=300
+  const colWidths = [17, 58, 14, 58, 300, 300, 300, 300, 300]
   colWidths.forEach((px, i) => {
     reqs.push({
       updateDimensionProperties: {
@@ -212,12 +212,12 @@ async function applyFormat(
             fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment)',
           },
         })
-        // 교과 셀 wrap
+        // 교과 셀 wrap + 가운데 정렬
         reqs.push({
           repeatCell: {
             range: rng(si, si + 1, 3, 8),
-            cell: { userEnteredFormat: { wrapStrategy: 'WRAP', verticalAlignment: 'MIDDLE' } },
-            fields: 'userEnteredFormat(wrapStrategy,verticalAlignment)',
+            cell: { userEnteredFormat: { wrapStrategy: 'WRAP', verticalAlignment: 'MIDDLE', horizontalAlignment: 'CENTER' } },
+            fields: 'userEnteredFormat(wrapStrategy,verticalAlignment,horizontalAlignment)',
           },
         })
         // 휴게시간 회색 배경
