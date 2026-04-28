@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ScheduleConfig, CurriculumItem, ExtraHoliday, HolidayInfo } from '@/lib/types'
 import { rowsToCsv } from '@/lib/timetable'
 import EditableTable from './EditableTable'
@@ -51,6 +51,7 @@ export default function TimetableTab() {
   const [sheetErr, setSheetErr] = useState('')
 
   const [extraInput, setExtraInput] = useState({ date: '', reason: '' })
+  const [extraOpen, setExtraOpen] = useState(false)
   const [colorOpen, setColorOpen] = useState(false)
 
   const buildCfg = (): ScheduleConfig => ({
@@ -67,6 +68,8 @@ export default function TimetableTab() {
     if (!data.error) setSavedCurricula(data)
     setCurLoading(false)
   }
+
+  useEffect(() => { loadCurricula() }, [])
 
   const previewHolidays = async () => {
     if (!s.curriculum.some((c) => c.hours > 0)) { alert('커리큘럼 시수를 입력해주세요.'); return }
@@ -146,20 +149,27 @@ export default function TimetableTab() {
       </div>
 
       {/* 추가 휴일 */}
-      <div className="card space-y-3">
-        <h2 className="section-title">추가 휴일</h2>
-        <div className="flex gap-2">
-          <input type="date" className="input w-40" value={extraInput.date} onChange={(e) => setExtraInput((p) => ({ ...p, date: e.target.value }))} />
-          <input type="text" className="input" placeholder="사유" value={extraInput.reason} onChange={(e) => setExtraInput((p) => ({ ...p, reason: e.target.value }))} />
-          <button className="btn-secondary whitespace-nowrap" onClick={() => { if (!extraInput.date) return; update({ extraHolidays: [...s.extraHolidays, { date: extraInput.date, reason: extraInput.reason || '휴일' }] }); setExtraInput({ date: '', reason: '' }) }}>추가</button>
-        </div>
-        {s.extraHolidays.map((h, i) => (
-          <div key={i} className="flex items-center justify-between text-sm bg-gray-50 rounded-xl px-4 py-2">
-            <span>{h.date} — {h.reason}</span>
-            <button className="text-gray-300 hover:text-red-400 text-xs transition-colors" onClick={() => update({ extraHolidays: s.extraHolidays.filter((_, j) => j !== i) })}>삭제</button>
+      <div className="card">
+        <button className="flex items-center gap-2 text-sm font-medium text-gray-600" onClick={() => setExtraOpen(!extraOpen)}>
+          <span>추가 휴일{s.extraHolidays.length > 0 ? ` (${s.extraHolidays.length})` : ''}</span>
+          <span className="text-gray-300 text-xs">{extraOpen ? '▲' : '▼'}</span>
+        </button>
+        {extraOpen && (
+          <div className="space-y-3 mt-4">
+            <div className="flex gap-2">
+              <input type="date" className="input w-40" value={extraInput.date} onChange={(e) => setExtraInput((p) => ({ ...p, date: e.target.value }))} />
+              <input type="text" className="input" placeholder="사유" value={extraInput.reason} onChange={(e) => setExtraInput((p) => ({ ...p, reason: e.target.value }))} />
+              <button className="btn-secondary whitespace-nowrap" onClick={() => { if (!extraInput.date) return; update({ extraHolidays: [...s.extraHolidays, { date: extraInput.date, reason: extraInput.reason || '휴일' }] }); setExtraInput({ date: '', reason: '' }) }}>추가</button>
+            </div>
+            {s.extraHolidays.map((h, i) => (
+              <div key={i} className="flex items-center justify-between text-sm bg-gray-50 rounded-xl px-4 py-2">
+                <span>{h.date} — {h.reason}</span>
+                <button className="text-gray-300 hover:text-red-400 text-xs transition-colors" onClick={() => update({ extraHolidays: s.extraHolidays.filter((_, j) => j !== i) })}>삭제</button>
+              </div>
+            ))}
+            {s.extraHolidays.length === 0 && <p className="text-xs text-gray-300">추가 휴일 없음</p>}
           </div>
-        ))}
-        {s.extraHolidays.length === 0 && <p className="text-xs text-gray-300">추가 휴일 없음</p>}
+        )}
       </div>
 
       {/* 커리큘럼 */}
@@ -167,25 +177,20 @@ export default function TimetableTab() {
         <div className="flex items-center justify-between">
           <h2 className="section-title">커리큘럼</h2>
           <div className="flex items-center gap-2">
-            <button
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold bg-blue-500 text-white hover:bg-blue-600 active:scale-95 transition-all shadow-sm disabled:opacity-40"
-              onClick={loadCurricula} disabled={curLoading}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h8M4 18h8" />
-              </svg>
-              {curLoading ? '로딩...' : '저장된 커리큘럼'}
-            </button>
+            {curLoading && <span className="text-xs text-gray-400">로딩...</span>}
             {savedCurricula && Object.keys(savedCurricula).length > 0 && (
-              <>
-                <select className="input w-40 py-1" value={selectedCur} onChange={(e) => setSelectedCur(e.target.value)}>
-                  <option>(직접 입력)</option>
-                  {Object.keys(savedCurricula).map((k) => <option key={k}>{k}</option>)}
-                </select>
-                {selectedCur !== '(직접 입력)' && (
-                  <button className="btn-primary text-xs py-1" onClick={() => { const items = savedCurricula[selectedCur] || []; setS((p) => ({ ...p, curriculum: items.map((c) => ({ subject: c.subject, hours: c.hours })) })); setPreviewDone(false) }}>적용</button>
-                )}
-              </>
+              <select className="input w-40 py-1" value={selectedCur} onChange={(e) => {
+                const name = e.target.value
+                setSelectedCur(name)
+                if (name !== '(직접 입력)') {
+                  const items = savedCurricula[name] || []
+                  setS((p) => ({ ...p, curriculum: items.map((c) => ({ subject: c.subject, hours: c.hours })) }))
+                  setPreviewDone(false)
+                }
+              }}>
+                <option>(직접 입력)</option>
+                {Object.keys(savedCurricula).map((k) => <option key={k}>{k}</option>)}
+              </select>
             )}
           </div>
         </div>

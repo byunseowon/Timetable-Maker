@@ -181,21 +181,21 @@ async function applyFormat(
         },
       })
 
-      // 날짜 행 (rowIdx+1): 가운데 정렬
+      // 날짜 행 (rowIdx+1): 헤더색 + 가운데 정렬
       reqs.push({
         repeatCell: {
           range: rng(rowIdx + 1, rowIdx + 2, 0, 8),
-          cell: { userEnteredFormat: { horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE' } },
-          fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment)',
+          cell: { userEnteredFormat: { backgroundColor: headerColor, horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE' } },
+          fields: 'userEnteredFormat(backgroundColor,horizontalAlignment,verticalAlignment)',
         },
       })
 
-      // 헤더 행 (rowIdx+2): 가운데 정렬
+      // 헤더 행 (rowIdx+2): 헤더색 + 가운데 정렬 + 굵게
       reqs.push({
         repeatCell: {
           range: rng(rowIdx + 2, rowIdx + 3, 0, 8),
-          cell: { userEnteredFormat: { horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE', textFormat: { bold: true } } },
-          fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,textFormat)',
+          cell: { userEnteredFormat: { backgroundColor: headerColor, horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE', textFormat: { bold: true } } },
+          fields: 'userEnteredFormat(backgroundColor,horizontalAlignment,verticalAlignment,textFormat)',
         },
       })
 
