@@ -6,11 +6,6 @@ import EditableTable from './EditableTable'
 
 const TIME_OPTIONS: string[] = Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, '0')}:00`)
 
-function hexToRgb(hex: string) {
-  const h = hex.replace('#', '')
-  return { red: parseInt(h.slice(0, 2), 16) / 255, green: parseInt(h.slice(2, 4), 16) / 255, blue: parseInt(h.slice(4, 6), 16) / 255 }
-}
-
 interface State {
   startDate: string; dayStart: string; dayEnd: string
   breakTimes: string[]; numBreaks: number
@@ -44,11 +39,6 @@ export default function TimetableTab() {
   const [rows, setRows] = useState<string[][] | null>(null)
   const [endDate, setEndDate] = useState('')
 
-  const [folderUrl, setFolderUrl] = useState('')
-  const [sheetTitle, setSheetTitle] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [sheetUrl, setSheetUrl] = useState('')
-  const [sheetErr, setSheetErr] = useState('')
 
   const [extraInput, setExtraInput] = useState({ date: '', reason: '' })
   const [colorOpen, setColorOpen] = useState(false)
@@ -80,7 +70,7 @@ export default function TimetableTab() {
 
   const generate = async () => {
     if (!s.curriculum.some((c) => c.hours > 0)) { alert('커리큘럼 시수를 입력해주세요.'); return }
-    setGenerating(true); setRows(null); setSheetUrl(''); setSheetErr('')
+    setGenerating(true); setRows(null)
     const res = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cfg: buildCfg(), ignoredPubHols: Array.from(ignoredHols) }) })
     const data = await res.json()
     if (!data.error) { setRows(data.rows); setEndDate(data.endDate); setPreviewDone(false) }
@@ -95,16 +85,7 @@ export default function TimetableTab() {
     a.download = `시간표_${s.startDate}.csv`; a.click()
   }
 
-  const saveToSheet = async () => {
-    if (!rows || !folderUrl.trim()) return
-    setSaving(true); setSheetUrl(''); setSheetErr('')
-    const res = await fetch('/api/create-sheet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows, folderUrl: folderUrl.trim(), title: sheetTitle.trim() || `시간표_${s.startDate}`, headerColor: hexToRgb(s.headerColor), breakColor: hexToRgb(s.breakColor) }) })
-    const data = await res.json()
-    if (data.error) setSheetErr(data.error); else setSheetUrl(data.url)
-    setSaving(false)
-  }
-
-  const weekCount = rows ? rows.filter((r) => r[0].endsWith('주차') && r[3]?.endsWith('주차')).length : 0
+const weekCount = rows ? rows.filter((r) => r[0].endsWith('주차') && r[3]?.endsWith('주차')).length : 0
 
   return (
     <div className="space-y-4">
@@ -257,24 +238,8 @@ export default function TimetableTab() {
 
       {/* 저장 */}
       {rows && (
-        <div className="card space-y-5">
-          <h2 className="section-title">저장 옵션</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-500">CSV 다운로드</p>
-              <button className="btn-primary w-full" onClick={downloadCsv}>CSV 다운로드</button>
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-500">구글 드라이브 저장</p>
-              <input type="text" className="input" placeholder="폴더 URL" value={folderUrl} onChange={(e) => setFolderUrl(e.target.value)} />
-              <input type="text" className="input" placeholder={`시간표_${s.startDate}`} value={sheetTitle} onChange={(e) => setSheetTitle(e.target.value)} />
-              <button className="btn-primary w-full" onClick={saveToSheet} disabled={!folderUrl.trim() || saving}>
-                {saving ? '저장 중...' : '구글 시트로 저장'}
-              </button>
-              {sheetUrl && <a href={sheetUrl} target="_blank" rel="noopener noreferrer" className="block text-sm text-blue-500 hover:underline mt-1">구글 시트 열기 →</a>}
-              {sheetErr && <p className="text-xs text-red-400 mt-1">{sheetErr}</p>}
-            </div>
-          </div>
+        <div className="card">
+          <button className="btn-primary w-full" onClick={downloadCsv}>CSV 다운로드</button>
         </div>
       )}
     </div>
