@@ -23,7 +23,8 @@ export default function CurriculumTab() {
     setLoading(true)
     const res = await fetch('/api/curricula')
     const data = await res.json()
-    if (!data.error) setCurricula(data)
+    if (data.error) flash(`로드 실패: ${data.error}`, 'err')
+    else setCurricula(data)
     setLoading(false)
   }
 
