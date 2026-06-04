@@ -11,6 +11,8 @@ export default function CurriculumTab() {
 
   const [newName, setNewName] = useState('')
   const [newItems, setNewItems] = useState<CurriculumItem[]>([])
+  const [importUrl, setImportUrl] = useState('')
+  const [importing, setImporting] = useState(false)
 
   const [selected, setSelected] = useState('(선택 안함)')
   const [editName, setEditName] = useState('')
@@ -37,6 +39,21 @@ export default function CurriculumTab() {
     if (data.error) flash(`저장 실패: ${data.error}`, 'err')
     else { setCurricula(updated); flash('저장 완료') }
     setSaving(false)
+  }
+
+  const importFromSheet = async () => {
+    if (!importUrl.trim()) { flash('시간표 URL을 입력해주세요.', 'err'); return }
+    setImporting(true)
+    const res = await fetch('/api/parse-sheet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sheetUrl: importUrl.trim() }) })
+    const data = await res.json()
+    if (data.error) { flash(`불러오기 실패: ${data.error}`, 'err') }
+    else {
+      const items: CurriculumItem[] = data.items.map((it: { subject: string; hours: number }, i: number) => ({ ...it, order: i + 1 }))
+      setNewItems(items)
+      setImportUrl('')
+      flash(`${items.length}개 과목 불러오기 완료`)
+    }
+    setImporting(false)
   }
 
   const addNew = async () => {
@@ -80,6 +97,14 @@ export default function CurriculumTab() {
       {/* 새 커리큘럼 */}
       <div className="card space-y-4">
         <h2 className="section-title">새 커리큘럼 추가</h2>
+        <div>
+          <label className="label">기존 시간표에서 불러오기 <span className="text-gray-300 font-normal">(선택)</span></label>
+          <div className="flex gap-2">
+            <input type="text" className="input" placeholder="구글 시트 URL" value={importUrl} onChange={(e) => setImportUrl(e.target.value)} />
+            <button className="btn-secondary whitespace-nowrap" onClick={importFromSheet} disabled={importing}>{importing ? '읽는 중...' : '불러오기'}</button>
+          </div>
+          <p className="text-xs text-gray-300 mt-1">이 앱으로 생성한 시간표 URL을 붙여넣으면 과목별 시수를 자동으로 읽어옵니다.</p>
+        </div>
         <div>
           <label className="label">트랙명</label>
           <input type="text" className="input" placeholder="예: Unreal 7기" value={newName} onChange={(e) => setNewName(e.target.value)} />

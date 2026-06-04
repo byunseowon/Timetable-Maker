@@ -72,6 +72,32 @@ export async function saveCurricula(data: Record<string, { subject: string; hour
   })
 }
 
+export async function parseTimetableSheet(sheetUrl: string): Promise<{ subject: string; hours: number }[]> {
+  const auth = getAuth()
+  const sheets = google.sheets({ version: 'v4', auth })
+  const spreadsheetId = extractSheetId(sheetUrl)
+
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'A:I' })
+  const rows = res.data.values ?? []
+
+  const counts: Record<string, number> = {}
+  const timePattern = /^\d{2}:\d{2}$/
+
+  for (const row of rows) {
+    // 슬롯 행 판별: col B=시간, col C='~'
+    if (timePattern.test(row[1] ?? '') && row[2] === '~') {
+      for (let ci = 4; ci <= 8; ci++) {
+        const val = (row[ci] ?? '').trim()
+        if (val && val !== '휴게시간') {
+          counts[val] = (counts[val] ?? 0) + 1
+        }
+      }
+    }
+  }
+
+  return Object.entries(counts).map(([subject, hours]) => ({ subject, hours }))
+}
+
 export async function createTimetableSheet(
   rows: string[][],
   folderId: string,
