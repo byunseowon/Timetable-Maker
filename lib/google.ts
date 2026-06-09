@@ -77,13 +77,18 @@ export async function parseTimetableSheet(sheetUrl: string): Promise<{ subject: 
   const sheets = google.sheets({ version: 'v4', auth })
   const spreadsheetId = extractSheetId(sheetUrl)
 
-  const [valuesRes, metaRes] = await Promise.all([
-    sheets.spreadsheets.values.get({ spreadsheetId, range: 'A:I' }),
-    sheets.spreadsheets.get({ spreadsheetId, includeGridData: false }),
-  ])
+  // 메타데이터 먼저 가져와서 실제 시트 이름 확인
+  const metaRes = await sheets.spreadsheets.get({ spreadsheetId, includeGridData: false })
+  const firstSheet = metaRes.data.sheets?.[0]
+  const sheetTitle = (firstSheet?.properties?.title ?? 'Sheet1').replace(/'/g, "\\'")
+  const merges = firstSheet?.merges ?? []
+
+  const valuesRes = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `'${sheetTitle}'!A:I`,
+  })
 
   const rows = valuesRes.data.values ?? []
-  const merges = metaRes.data.sheets?.[0].merges ?? []
 
   // 10행 이상 병합된 셀(요일 열 E-I) = 휴일
   const holidayValues = new Set<string>()
@@ -104,7 +109,7 @@ export async function parseTimetableSheet(sheetUrl: string): Promise<{ subject: 
   let curWeek: string[][] | null = null
 
   for (const row of rows) {
-    const isWeekHeader = (row[1] ?? '').endsWith('주차') && (row[4] ?? '').endsWith('주차')
+    const isWeekHeader = /^\d+주차$/.test((row[1] ?? '').trim())
     if (isWeekHeader) {
       curWeek = [[], [], [], [], []]
       weekCols.push(curWeek)
@@ -126,7 +131,7 @@ export async function parseTimetableSheet(sheetUrl: string): Promise<{ subject: 
   let curHours = 0
 
   for (const val of sequence) {
-    if (!val || val === '휴게시간' || holidayValues.has(val)) continue
+    if (!val || val.replace(/\s+/g, '') === '휴게시간' || holidayValues.has(val)) continue
     if (val === curSubject) {
       curHours++
     } else {
