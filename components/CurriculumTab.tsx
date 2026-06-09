@@ -13,6 +13,7 @@ export default function CurriculumTab() {
   const [newItems, setNewItems] = useState<CurriculumItem[]>([])
   const [importUrl, setImportUrl] = useState('')
   const [importing, setImporting] = useState(false)
+  const [officeModal, setOfficeModal] = useState(false)
 
   const [selected, setSelected] = useState('(선택 안함)')
   const [editName, setEditName] = useState('')
@@ -46,7 +47,13 @@ export default function CurriculumTab() {
     setImporting(true)
     const res = await fetch('/api/parse-sheet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sheetUrl: importUrl.trim() }) })
     const data = await res.json()
-    if (data.error) { flash(`불러오기 실패: ${data.error}`, 'err') }
+    if (data.error) {
+      if (data.error.includes('Office') || data.error.includes('not supported for this document')) {
+        setOfficeModal(true)
+      } else {
+        flash(`불러오기 실패: ${data.error}`, 'err')
+      }
+    }
     else {
       const items: CurriculumItem[] = data.items.map((it: { subject: string; hours: number }, i: number) => ({ ...it, order: i + 1 }))
       setNewItems(items)
@@ -88,6 +95,22 @@ export default function CurriculumTab() {
 
   return (
     <div className="space-y-4">
+      {officeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4 space-y-4">
+            <h3 className="text-base font-semibold text-gray-900">Office 파일은 지원되지 않습니다</h3>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              입력한 URL은 <span className="font-medium">.xlsx 형식</span>의 Office 파일입니다. Google Sheets API는 네이티브 구글 스프레드시트만 읽을 수 있습니다.
+            </p>
+            <div className="bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-700 space-y-1">
+              <p className="font-medium">해결 방법</p>
+              <p>Google Drive에서 해당 파일을 열고</p>
+              <p><span className="font-medium">메뉴 → Google Sheets로 저장</span>을 선택한 뒤, 새로 만들어진 구글 시트 URL을 입력해주세요.</p>
+            </div>
+            <button className="btn-primary w-full" onClick={() => setOfficeModal(false)}>확인</button>
+          </div>
+        </div>
+      )}
       {msg && (
         <div className={`px-4 py-3 rounded-xl text-sm ${msg.type === 'ok' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
           {msg.text}
