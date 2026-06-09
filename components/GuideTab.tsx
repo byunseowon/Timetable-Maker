@@ -82,18 +82,6 @@ const sections = [
       },
     ],
   },
-  {
-    title: '구글 시트 저장',
-    steps: [
-      {
-        step: '폴더 URL 입력',
-        lines: [
-          '구글 드라이브 폴더를 열고 주소창의 URL 전체를 붙여넣습니다.',
-          '시간표가 해당 폴더 안에 새 시트로 생성됩니다.',
-        ],
-      },
-    ],
-  },
 ]
 
 export default function GuideTab() {
