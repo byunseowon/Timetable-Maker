@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { parseTimetableSheet } from '@/lib/google'
+import { getSheetTitles } from '@/lib/google'
 
 export async function POST(req: NextRequest) {
   try {
-    const { sheetUrl, sheetName } = await req.json()
+    const { sheetUrl } = await req.json()
     if (!sheetUrl) return NextResponse.json({ error: 'sheetUrl 필요' }, { status: 400 })
-    const items = await parseTimetableSheet(sheetUrl, sheetName)
-    return NextResponse.json({ items })
+    const titles = await getSheetTitles(sheetUrl)
+    return NextResponse.json({ titles })
   } catch (e: unknown) {
     return NextResponse.json({ error: String(e) }, { status: 500 })
   }

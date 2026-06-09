@@ -13,6 +13,8 @@ export default function CurriculumTab() {
   const [newItems, setNewItems] = useState<CurriculumItem[]>([])
   const [importUrl, setImportUrl] = useState('')
   const [importing, setImporting] = useState(false)
+  const [sheetTabs, setSheetTabs] = useState<string[] | null>(null)
+  const [selectedTab, setSelectedTab] = useState('')
   const [officeModal, setOfficeModal] = useState(false)
 
   const [selected, setSelected] = useState('(선택 안함)')
@@ -42,10 +44,31 @@ export default function CurriculumTab() {
     setSaving(false)
   }
 
-  const importFromSheet = async () => {
+  const fetchTabs = async () => {
     if (!importUrl.trim()) { flash('시간표 URL을 입력해주세요.', 'err'); return }
     setImporting(true)
-    const res = await fetch('/api/parse-sheet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sheetUrl: importUrl.trim() }) })
+    setSheetTabs(null)
+    setSelectedTab('')
+    const res = await fetch('/api/sheet-tabs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sheetUrl: importUrl.trim() }) })
+    const data = await res.json()
+    if (data.error) {
+      if (data.error.includes('Office') || data.error.includes('not supported for this document')) {
+        setOfficeModal(true)
+      } else {
+        flash(`오류: ${data.error}`, 'err')
+      }
+    } else if (data.titles?.length === 1) {
+      await doImport(importUrl.trim(), data.titles[0])
+    } else {
+      setSheetTabs(data.titles)
+      setSelectedTab(data.titles[0])
+    }
+    setImporting(false)
+  }
+
+  const doImport = async (url: string, tabName: string) => {
+    setImporting(true)
+    const res = await fetch('/api/parse-sheet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sheetUrl: url, sheetName: tabName }) })
     const data = await res.json()
     if (data.error) {
       if (data.error.includes('Office') || data.error.includes('not supported for this document')) {
@@ -53,11 +76,11 @@ export default function CurriculumTab() {
       } else {
         flash(`불러오기 실패: ${data.error}`, 'err')
       }
-    }
-    else {
+    } else {
       const items: CurriculumItem[] = data.items.map((it: { subject: string; hours: number }, i: number) => ({ ...it, order: i + 1 }))
       setNewItems(items)
       setImportUrl('')
+      setSheetTabs(null)
       flash(`${items.length}개 과목 불러오기 완료`)
     }
     setImporting(false)
@@ -123,10 +146,18 @@ export default function CurriculumTab() {
         <div>
           <label className="label">기존 시간표에서 불러오기 <span className="text-gray-300 font-normal">(선택)</span></label>
           <div className="flex gap-2">
-            <input type="text" className="input" placeholder="구글 시트 URL" value={importUrl} onChange={(e) => setImportUrl(e.target.value)} />
-            <button className="btn-secondary whitespace-nowrap" onClick={importFromSheet} disabled={importing}>{importing ? '읽는 중...' : '불러오기'}</button>
+            <input type="text" className="input" placeholder="구글 시트 URL" value={importUrl} onChange={(e) => { setImportUrl(e.target.value); setSheetTabs(null) }} />
+            <button className="btn-secondary whitespace-nowrap" onClick={fetchTabs} disabled={importing}>{importing ? '읽는 중...' : '불러오기'}</button>
           </div>
-          <p className="text-xs text-gray-300 mt-1">이 앱으로 생성한 시간표 URL을 붙여넣으면 과목별 시수를 자동으로 읽어옵니다.</p>
+          {sheetTabs && sheetTabs.length > 1 && (
+            <div className="flex gap-2 mt-2">
+              <select className="input" value={selectedTab} onChange={(e) => setSelectedTab(e.target.value)}>
+                {sheetTabs.map((t) => <option key={t}>{t}</option>)}
+              </select>
+              <button className="btn-primary whitespace-nowrap" onClick={() => doImport(importUrl.trim(), selectedTab)} disabled={importing}>이 시트 불러오기</button>
+            </div>
+          )}
+          <p className="text-xs text-gray-300 mt-1">구글 시트 URL을 붙여넣으면 과목별 시수를 자동으로 읽어옵니다.</p>
         </div>
         <div>
           <label className="label">트랙명</label>

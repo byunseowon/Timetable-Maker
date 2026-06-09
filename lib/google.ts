@@ -72,16 +72,26 @@ export async function saveCurricula(data: Record<string, { subject: string; hour
   })
 }
 
-export async function parseTimetableSheet(sheetUrl: string): Promise<{ subject: string; hours: number }[]> {
+export async function getSheetTitles(sheetUrl: string): Promise<string[]> {
+  const auth = getAuth()
+  const sheets = google.sheets({ version: 'v4', auth })
+  const spreadsheetId = extractSheetId(sheetUrl)
+  const metaRes = await sheets.spreadsheets.get({ spreadsheetId, includeGridData: false })
+  return (metaRes.data.sheets ?? []).map((s) => s.properties?.title ?? '')
+}
+
+export async function parseTimetableSheet(sheetUrl: string, sheetName?: string): Promise<{ subject: string; hours: number }[]> {
   const auth = getAuth()
   const sheets = google.sheets({ version: 'v4', auth })
   const spreadsheetId = extractSheetId(sheetUrl)
 
   // 메타데이터 먼저 가져와서 실제 시트 이름 확인
   const metaRes = await sheets.spreadsheets.get({ spreadsheetId, includeGridData: false })
-  const firstSheet = metaRes.data.sheets?.[0]
-  const sheetTitle = (firstSheet?.properties?.title ?? 'Sheet1').replace(/'/g, "\\'")
-  const merges = firstSheet?.merges ?? []
+  const targetSheet = sheetName
+    ? (metaRes.data.sheets ?? []).find((s) => s.properties?.title === sheetName) ?? metaRes.data.sheets?.[0]
+    : metaRes.data.sheets?.[0]
+  const sheetTitle = (targetSheet?.properties?.title ?? 'Sheet1').replace(/'/g, "\\'")
+  const merges = targetSheet?.merges ?? []
 
   const valuesRes = await sheets.spreadsheets.values.get({
     spreadsheetId,
