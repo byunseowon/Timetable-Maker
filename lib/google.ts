@@ -7,7 +7,7 @@ function getAuth(): JWT {
   const creds = JSON.parse(raw)
   return new JWT({
     email: creds.client_email,
-    key: creds.private_key,
+    key: creds.private_key.replace(/\\n/g, '\n'),
     scopes: [
       'https://www.googleapis.com/auth/spreadsheets',
       'https://www.googleapis.com/auth/drive',
@@ -77,25 +77,67 @@ export async function parseTimetableSheet(sheetUrl: string): Promise<{ subject: 
   const sheets = google.sheets({ version: 'v4', auth })
   const spreadsheetId = extractSheetId(sheetUrl)
 
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'A:I' })
-  const rows = res.data.values ?? []
+  const [valuesRes, metaRes] = await Promise.all([
+    sheets.spreadsheets.values.get({ spreadsheetId, range: 'A:I' }),
+    sheets.spreadsheets.get({ spreadsheetId, includeGridData: false }),
+  ])
 
-  const counts: Record<string, number> = {}
-  const timePattern = /^\d{2}:\d{2}$/
+  const rows = valuesRes.data.values ?? []
+  const merges = metaRes.data.sheets?.[0].merges ?? []
 
-  for (const row of rows) {
-    // 슬롯 행 판별: col B=시간, col C='~'
-    if (timePattern.test(row[1] ?? '') && row[2] === '~') {
-      for (let ci = 4; ci <= 8; ci++) {
-        const val = (row[ci] ?? '').trim()
-        if (val && val !== '휴게시간') {
-          counts[val] = (counts[val] ?? 0) + 1
-        }
-      }
+  // 10행 이상 병합된 셀(요일 열 E-I) = 휴일
+  const holidayValues = new Set<string>()
+  for (const merge of merges) {
+    const rowSpan = (merge.endRowIndex ?? 0) - (merge.startRowIndex ?? 0)
+    const colStart = merge.startColumnIndex ?? 0
+    const colEnd = merge.endColumnIndex ?? 0
+    if (rowSpan >= 10 && colStart >= 4 && colEnd <= 9) {
+      const val = (rows[merge.startRowIndex ?? 0]?.[colStart] ?? '').trim()
+      if (val) holidayValues.add(val)
     }
   }
 
-  return Object.entries(counts).map(([subject, hours]) => ({ subject, hours }))
+  const timePattern = /^\d{2}:\d{2}$/
+
+  // 주차별·요일별(Mon→Fri) 순서로 전체 시퀀스 구성
+  const weekCols: string[][][] = []
+  let curWeek: string[][] | null = null
+
+  for (const row of rows) {
+    const isWeekHeader = (row[1] ?? '').endsWith('주차') && (row[4] ?? '').endsWith('주차')
+    if (isWeekHeader) {
+      curWeek = [[], [], [], [], []]
+      weekCols.push(curWeek)
+    } else if (curWeek && timePattern.test(row[1] ?? '') && row[2] === '~') {
+      for (let i = 0; i < 5; i++) curWeek[i].push((row[4 + i] ?? '').trim())
+    }
+  }
+
+  const sequence: string[] = []
+  for (const week of weekCols) {
+    for (let c = 0; c < 5; c++) {
+      for (const val of week[c]) sequence.push(val)
+    }
+  }
+
+  // 연속 블록 추출 (휴일·빈 셀·휴게시간은 투명 처리)
+  const blocks: { subject: string; hours: number }[] = []
+  let curSubject: string | null = null
+  let curHours = 0
+
+  for (const val of sequence) {
+    if (!val || val === '휴게시간' || holidayValues.has(val)) continue
+    if (val === curSubject) {
+      curHours++
+    } else {
+      if (curSubject !== null) blocks.push({ subject: curSubject, hours: curHours })
+      curSubject = val
+      curHours = 1
+    }
+  }
+  if (curSubject !== null) blocks.push({ subject: curSubject, hours: curHours })
+
+  return blocks
 }
 
 export async function createTimetableSheet(
@@ -291,15 +333,15 @@ async function applyFormat(
         })
       }
 
-      // 주차 블록 전체 외곽 테두리
-      reqs.push({
-        updateBorders: {
-          range: rng(rowIdx, rowIdx + weekRows, 0, 8),
-          top: BORDER, bottom: BORDER, left: BORDER, right: BORDER,
-          innerHorizontal: { style: 'SOLID', width: 1, color: { red: 0.8, green: 0.8, blue: 0.8 } },
-          innerVertical: BORDER,
-        },
+      // 5개 영역 외곽 테두리만 (내부 선 없음)
+      const box = (r1: number, r2: number, c1: number, c2: number) => ({
+        updateBorders: { range: rng(r1, r2, c1, c2), top: BORDER, bottom: BORDER, left: BORDER, right: BORDER },
       })
+      reqs.push(box(rowIdx, rowIdx + 1, 0, 8))              // 주차 행
+      reqs.push(box(rowIdx + 1, rowIdx + 3, 0, 3))          // 날짜+헤더 (시간 열 B-D)
+      reqs.push(box(slotStart, slotEnd, 0, 3))              // 슬롯 (시간 열 B-D)
+      reqs.push(box(rowIdx + 1, slotEnd, 3, 8))             // 날짜+헤더+슬롯 (요일 열 E-I)
+      reqs.push(box(slotEnd, rowIdx + weekRows, 0, 8))      // 푸터
 
       rowIdx += weekRows
     } else {
