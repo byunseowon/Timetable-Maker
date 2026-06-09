@@ -104,9 +104,9 @@ export default function GuideTab() {
           <h2 className="section-title">{sec.title}</h2>
           <div className="space-y-4">
             {sec.steps.map((s) => (
-              <div key={s.step} className="flex gap-3">
-                <span className="text-sm font-semibold text-blue-500 whitespace-nowrap pt-0.5">{s.step}</span>
-                <div className="space-y-1">
+              <div key={s.step} className="flex gap-4">
+                <span className="text-sm font-semibold text-blue-500 w-36 shrink-0 pt-0.5">{s.step}</span>
+                <div className="flex-1 space-y-1">
                   {s.lines.map((line, i) => (
                     <p key={i} className="text-sm text-gray-600 leading-relaxed">{line}</p>
                   ))}
