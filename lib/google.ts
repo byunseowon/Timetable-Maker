@@ -134,7 +134,7 @@ export async function parseTimetableSheet(sheetUrl: string, sheetName?: string):
     }
   }
 
-  const timePattern = /^\d{2}:\d{2}$/
+  const timePattern = /^\d{1,2}:\d{2}$/
 
   // 주차별·요일별(Mon→Fri) 순서로 전체 시퀀스 구성
   const weekCols: string[][][] = []
@@ -174,18 +174,7 @@ export async function parseTimetableSheet(sheetUrl: string, sheetName?: string):
   }
   if (curSubject !== null) blocks.push({ subject: curSubject, hours: curHours })
 
-  // 같은 과목이 여러 블록으로 쪼개진 경우 집계 (첫 등장 순서 유지)
-  const subjectOrder: string[] = []
-  const subjectHours = new Map<string, number>()
-  for (const block of blocks) {
-    if (!subjectHours.has(block.subject)) {
-      subjectOrder.push(block.subject)
-      subjectHours.set(block.subject, 0)
-    }
-    subjectHours.set(block.subject, (subjectHours.get(block.subject) || 0) + block.hours)
-  }
-
-  return subjectOrder.map((subject) => ({ subject, hours: subjectHours.get(subject)! }))
+  return blocks
 }
 
 export async function createTimetableSheet(
