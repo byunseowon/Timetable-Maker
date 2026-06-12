@@ -98,7 +98,29 @@ export async function parseTimetableSheet(sheetUrl: string, sheetName?: string):
     range: `'${sheetTitle}'!A:I`,
   })
 
-  const rows = valuesRes.data.values ?? []
+  const rawRows = valuesRes.data.values ?? []
+
+  // 병합 셀 값 전파: 교과목 열(E-I, index 4-8)에서 병합된 셀의 빈 하위 행에 상단 값을 채워 넣음
+  // Google Sheets API는 병합 셀의 맨 위 행만 값을 반환하고 나머지는 '' 반환 → 시간 누락 방지
+  const rows: string[][] = rawRows.map((r) => [...r])
+  for (const merge of merges) {
+    const rowStart = merge.startRowIndex ?? 0
+    const rowEnd = merge.endRowIndex ?? 0
+    const colStart = merge.startColumnIndex ?? 0
+    const colEnd = merge.endColumnIndex ?? 0
+    // 교과목 열(단일 열 병합)만 처리
+    if (colStart >= 4 && colEnd <= 9 && colEnd - colStart === 1) {
+      const topVal = (rows[rowStart]?.[colStart] ?? '').trim()
+      if (topVal) {
+        for (let r = rowStart + 1; r < rowEnd; r++) {
+          while (rows[r].length <= colStart) rows[r].push('')
+          if (!(rows[r][colStart] ?? '').trim()) {
+            rows[r][colStart] = topVal
+          }
+        }
+      }
+    }
+  }
 
   // 10행 이상 병합된 셀(요일 열 E-I) = 휴일
   const holidayValues = new Set<string>()
@@ -152,7 +174,18 @@ export async function parseTimetableSheet(sheetUrl: string, sheetName?: string):
   }
   if (curSubject !== null) blocks.push({ subject: curSubject, hours: curHours })
 
-  return blocks
+  // 같은 과목이 여러 블록으로 쪼개진 경우 집계 (첫 등장 순서 유지)
+  const subjectOrder: string[] = []
+  const subjectHours = new Map<string, number>()
+  for (const block of blocks) {
+    if (!subjectHours.has(block.subject)) {
+      subjectOrder.push(block.subject)
+      subjectHours.set(block.subject, 0)
+    }
+    subjectHours.set(block.subject, (subjectHours.get(block.subject) || 0) + block.hours)
+  }
+
+  return subjectOrder.map((subject) => ({ subject, hours: subjectHours.get(subject)! }))
 }
 
 export async function createTimetableSheet(
